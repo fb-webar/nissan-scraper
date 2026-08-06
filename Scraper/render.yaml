@@ -1,6 +1,0 @@
-services:
-  - type: web
-    name: nissan-scraper
-    runtime: docker
-    plan: free
-    dockerfilePath: ./Dockerfile
