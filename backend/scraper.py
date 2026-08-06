@@ -6,7 +6,18 @@ async def scrape_nissan_images(url: str) -> dict:
     iris_links = set()
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(
+            headless=True,
+            args=[
+                "--disable-gpu",
+                "--disable-dev-shm-usage",
+                "--disable-setuid-sandbox",
+                "--no-sandbox",
+                "--single-process",
+                "--no-zygote",
+                "--disable-extensions",
+            ],
+        )
         context = await browser.new_context(
             viewport={"width": 1920, "height": 1080},
             user_agent=(
@@ -50,7 +61,6 @@ async def scrape_nissan_images(url: str) -> dict:
                 continue
 
         await page.wait_for_timeout(3000)
-
         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         await page.wait_for_timeout(2000)
 
