@@ -5,150 +5,360 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nissan Image Extractor</title>
   <style>
+    :root {
+      --nissan-red: #c3002f;
+      --nissan-red-dark: #a00026;
+      --nissan-black: #0a0a0a;
+      --nissan-gray: #1a1a1a;
+      --light-gray: #f5f5f5;
+      --border-gray: #e0e0e0;
+    }
+
     * {
       box-sizing: border-box;
-      font-family: 'Segoe UI', Tahoma, sans-serif;
-    }
-    body {
-      background: #f4f4f4;
       margin: 0;
-      padding: 40px 20px;
-      color: #1a1a1a;
+      padding: 0;
+      font-family: 'Helvetica Neue', Arial, sans-serif;
     }
-    .container {
-      max-width: 900px;
-      margin: 0 auto;
-      background: #fff;
-      padding: 32px;
-      border-radius: 12px;
-      box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+
+    body {
+      background: var(--light-gray);
+      color: var(--nissan-black);
+      min-height: 100vh;
     }
-    h1 {
-      color: #c3002f;
-      font-size: 24px;
-      margin-top: 0;
+
+    /* HEADER */
+    .header {
+      background: var(--nissan-black);
+      padding: 18px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
     }
-    p.intro {
-      color: #555;
-      font-size: 14px;
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 20px;
     }
-    input {
-      width: 100%;
-      padding: 14px;
-      font-size: 15px;
-      border: 2px solid #ddd;
-      border-radius: 8px;
-      margin: 12px 0;
+
+    .logo {
+      height: 42px;
+      width: auto;
     }
-    input:focus {
-      outline: none;
-      border-color: #c3002f;
-    }
-    button {
-      background: #c3002f;
+
+    .header-title {
       color: #fff;
-      border: none;
-      padding: 14px 28px;
       font-size: 15px;
-      border-radius: 8px;
-      cursor: pointer;
+      font-weight: 300;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      border-left: 1px solid rgba(255, 255, 255, 0.3);
+      padding-left: 20px;
+    }
+
+    .header-title span {
+      color: var(--nissan-red);
       font-weight: 600;
     }
-    button:hover {
-      background: #a00026;
+
+    /* MAIN */
+    .main {
+      max-width: 960px;
+      margin: 40px auto;
+      padding: 0 20px;
     }
-    button:disabled {
+
+    .hero {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+
+    .hero h1 {
+      font-size: 32px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      margin-bottom: 10px;
+    }
+
+    .hero h1 .accent {
+      color: var(--nissan-red);
+    }
+
+    .hero p {
+      color: #666;
+      font-size: 15px;
+      max-width: 600px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+
+    /* INPUT CARD */
+    .card {
+      background: #fff;
+      border-radius: 4px;
+      padding: 32px;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+      border-top: 4px solid var(--nissan-red);
+    }
+
+    .input-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    input {
+      flex: 1;
+      min-width: 260px;
+      padding: 16px;
+      font-size: 15px;
+      border: 2px solid var(--border-gray);
+      border-radius: 4px;
+      transition: border-color 0.2s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: var(--nissan-red);
+    }
+
+    .btn {
+      background: var(--nissan-red);
+      color: #fff;
+      border: none;
+      padding: 16px 36px;
+      font-size: 14px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn:hover {
+      background: var(--nissan-red-dark);
+    }
+
+    .btn:disabled {
       background: #999;
       cursor: not-allowed;
     }
+
+    .status {
+      margin-top: 18px;
+      font-size: 14px;
+      color: #666;
+      min-height: 20px;
+    }
+
+    .status.error {
+      color: var(--nissan-red);
+      font-weight: 600;
+    }
+
+    .status.success {
+      color: #2e7d32;
+      font-weight: 600;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 14px;
+      height: 14px;
+      border: 2px solid #ddd;
+      border-top-color: var(--nissan-red);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* RESULTS */
+    .results {
+      margin-top: 32px;
+    }
+
     .section {
-      margin-top: 24px;
+      background: #fff;
+      border-radius: 4px;
+      margin-bottom: 20px;
+      overflow: hidden;
+      box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
     }
-    .section h3 {
-      border-bottom: 2px solid #eee;
-      padding-bottom: 8px;
-      color: #333;
+
+    .section-header {
+      background: var(--nissan-gray);
+      color: #fff;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
+
+    .section-header h3 {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .badge {
+      background: var(--nissan-red);
+      color: #fff;
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 12px;
+      font-weight: 700;
+    }
+
+    .copy-all {
+      background: rgba(255, 255, 255, 0.15);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      padding: 8px 16px;
+      font-size: 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+
+    .copy-all:hover {
+      background: rgba(255, 255, 255, 0.25);
+    }
+
+    .section-body {
+      padding: 8px 20px 20px;
+    }
+
     .img-item {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 10px;
-      background: #fafafa;
-      border-radius: 6px;
-      margin: 6px 0;
-      font-size: 13px;
-      word-break: break-all;
-      gap: 10px;
+      padding: 14px 0;
+      border-bottom: 1px solid var(--border-gray);
+      gap: 12px;
     }
-    .img-item a {
+
+    .img-item:last-child {
+      border-bottom: none;
+    }
+
+    .img-link {
       color: #0066cc;
       text-decoration: none;
+      font-size: 13px;
+      word-break: break-all;
       flex: 1;
+      font-family: 'Courier New', monospace;
     }
-    .img-item a:hover {
+
+    .img-link:hover {
       text-decoration: underline;
     }
+
     .btn-group {
       display: flex;
-      gap: 6px;
+      gap: 8px;
       flex-shrink: 0;
     }
-    .copy-btn {
-      background: #333;
-      padding: 8px 14px;
+
+    .mini-btn {
+      background: var(--nissan-black);
+      color: #fff;
+      border: none;
+      padding: 8px 16px;
       font-size: 12px;
-    }
-    .copy-btn:hover {
-      background: #000;
-    }
-    .status {
-      margin-top: 16px;
-      font-style: italic;
-      color: #666;
-      min-height: 20px;
-    }
-    .status.error {
-      color: #c3002f;
+      border-radius: 4px;
+      cursor: pointer;
       font-weight: 600;
-      font-style: normal;
+      transition: background 0.2s;
+      white-space: nowrap;
     }
-    .status.success {
-      color: #2e7d32;
-      font-weight: 600;
-      font-style: normal;
+
+    .mini-btn:hover {
+      background: var(--nissan-red);
     }
-    .copy-all {
-      background: #0066cc;
-      margin-top: 12px;
-      margin-bottom: 4px;
-    }
-    .copy-all:hover {
-      background: #004fa3;
-    }
+
     .empty {
       color: #999;
       font-style: italic;
-      padding: 8px 0;
+      padding: 16px 0;
+      font-size: 14px;
+    }
+
+    /* FOOTER */
+    .footer {
+      text-align: center;
+      padding: 30px 20px;
+      color: #999;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+
+    @media (max-width: 600px) {
+      .header { padding: 14px 20px; }
+      .header-title { font-size: 12px; letter-spacing: 1px; padding-left: 12px; }
+      .hero h1 { font-size: 24px; }
+      .img-item { flex-direction: column; align-items: stretch; }
+      .btn-group { justify-content: flex-end; }
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🚗 Nissan Image Extractor</h1>
-    <p class="intro">
-      Zalijepi link konfiguriranog vozila (bilo koji Nissan model / tržište) i klikni
-      <b>Dohvati slike</b>. Aplikacija izdvaja linkove za eksterijer i 360° interijer.
-    </p>
-    <input
-      id="urlInput"
-      type="text"
-      placeholder="https://www.nissan.de/vehicles/..."
-    >
-    <button id="scrapeBtn" onclick="scrape()">Dohvati slike</button>
-    <div class="status" id="status"></div>
-    <div id="results"></div>
+  <!-- HEADER -->
+  <header class="header">
+    <div class="header-left">
+      <!-- Nissan logo (SVG - službena silueta) -->
+      <svg class="logo" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="30" cy="30" r="28" fill="none" stroke="#c3002f" stroke-width="3"/>
+        <rect x="8" y="26" width="44" height="8" fill="#fff"/>
+        <text x="30" y="33" font-size="9" fill="#0a0a0a" text-anchor="middle" font-weight="bold" font-family="Arial">NISSAN</text>
+        <text x="70" y="38" font-size="22" fill="#fff" font-weight="700" letter-spacing="2" font-family="Arial">NISSAN</text>
+      </svg>
+      <span class="header-title">Image <span>Extractor</span></span>
+    </div>
+  </header>
+
+  <!-- MAIN -->
+  <div class="main">
+    <div class="hero">
+      <h1>360° Image <span class="accent">Extractor</span></h1>
+      <p>
+        Zalijepi link konfiguriranog vozila (bilo koji Nissan model ili tržište)
+        i automatski izvuci linkove za eksterijer i 360° interijer panoramu.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="input-row">
+        <input
+          id="urlInput"
+          type="text"
+          placeholder="https://www.nissan.de/vehicles/..."
+        >
+        <button class="btn" id="scrapeBtn" onclick="scrape()">Dohvati slike</button>
+      </div>
+      <div class="status" id="status"></div>
+    </div>
+
+    <div class="results" id="results"></div>
   </div>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    NISSAN IMAGE EXTRACTOR &middot; Interni alat
+  </footer>
 
   <script>
     async function scrape() {
@@ -165,7 +375,7 @@
 
       btn.disabled = true;
       status.className = 'status';
-      status.textContent = '⏳ Učitavam stranicu i tražim slike... (može potrajati 20-40s)';
+      status.innerHTML = '<span class="spinner"></span> Učitavam stranicu i tražim slike... (20-40s)';
       results.innerHTML = '';
 
       try {
@@ -193,7 +403,7 @@
 
         render(json.data);
         status.className = 'status success';
-        status.textContent = '✅ Pronađeno ukupno ' + json.data.total + ' slika.';
+        status.textContent = '✅ Pronađeno ukupno ' + json.data.total + ' izvornih slika.';
       } catch (e) {
         status.className = 'status error';
         status.textContent = '❌ Greška: ' + e.message;
@@ -206,42 +416,55 @@
       const results = document.getElementById('results');
       results.innerHTML = '';
       renderSection('🚙 Eksterijer 360°', data.exterior_360);
-      renderSection('🛋️ Interijer (Pannellum)', data.interior_pannellum);
+      renderSection('🛋️ Interijer (360° Panorama)', data.interior_pannellum);
       renderSection('🖼️ Ostale slike', data.other_images);
 
-      if (
+      const noMain =
         (!data.exterior_360 || data.exterior_360.length === 0) &&
-        (!data.interior_pannellum || data.interior_pannellum.length === 0)
-      ) {
+        (!data.interior_pannellum || data.interior_pannellum.length === 0);
+
+      if (noMain) {
         const div = document.createElement('div');
         div.className = 'section';
         div.innerHTML =
-          '<p class="empty">Nisu pronađene glavne slike vozila. ' +
-          'Provjeri je li link ispravan ili pokušaj ponovno.</p>';
+          '<div class="section-body"><p class="empty">' +
+          'Nisu pronađene glavne slike vozila. Provjeri link ili pokušaj ponovno.' +
+          '</p></div>';
         results.appendChild(div);
       }
     }
 
     function renderSection(title, links) {
       const results = document.getElementById('results');
-      const div = document.createElement('div');
-      div.className = 'section';
+      const count = links ? links.length : 0;
 
-      let count = links ? links.length : 0;
-      let html = '<h3>' + title + ' (' + count + ')</h3>';
+      const section = document.createElement('div');
+      section.className = 'section';
 
-      if (count === 0) {
-        html += '<p class="empty">Nema rezultata u ovoj kategoriji.</p>';
-        div.innerHTML = html;
-        results.appendChild(div);
-        return;
+      const header = document.createElement('div');
+      header.className = 'section-header';
+      header.innerHTML =
+        '<h3>' + title + ' <span class="badge">' + count + '</span></h3>';
+
+      if (count > 0) {
+        const copyAllBtn = document.createElement('button');
+        copyAllBtn.className = 'copy-all';
+        copyAllBtn.textContent = '📋 Kopiraj sve';
+        copyAllBtn.onclick = function () { copyAll(links); };
+        header.appendChild(copyAllBtn);
       }
 
-      html +=
-        '<button class="copy-all" onclick=\'copyAll(' +
-        JSON.stringify(links) +
-        ')\'>📋 Kopiraj sve linkove</button>';
-      div.innerHTML = html;
+      section.appendChild(header);
+
+      const body = document.createElement('div');
+      body.className = 'section-body';
+
+      if (count === 0) {
+        body.innerHTML = '<p class="empty">Nema rezultata u ovoj kategoriji.</p>';
+        section.appendChild(body);
+        results.appendChild(section);
+        return;
+      }
 
       links.forEach(function (link) {
         const item = document.createElement('div');
@@ -250,43 +473,39 @@
         const a = document.createElement('a');
         a.href = link;
         a.target = '_blank';
+        a.className = 'img-link';
         a.textContent = link;
 
         const group = document.createElement('div');
         group.className = 'btn-group';
 
         const copyBtn = document.createElement('button');
-        copyBtn.className = 'copy-btn';
+        copyBtn.className = 'mini-btn';
         copyBtn.textContent = 'Kopiraj';
-        copyBtn.onclick = function () {
-          copyOne(link, copyBtn);
-        };
+        copyBtn.onclick = function () { copyOne(link, copyBtn); };
 
         const openBtn = document.createElement('button');
-        openBtn.className = 'copy-btn';
+        openBtn.className = 'mini-btn';
         openBtn.textContent = 'Otvori';
-        openBtn.onclick = function () {
-          window.open(link, '_blank');
-        };
+        openBtn.onclick = function () { window.open(link, '_blank'); };
 
         group.appendChild(copyBtn);
         group.appendChild(openBtn);
 
         item.appendChild(a);
         item.appendChild(group);
-        div.appendChild(item);
+        body.appendChild(item);
       });
 
-      results.appendChild(div);
+      section.appendChild(body);
+      results.appendChild(section);
     }
 
     function copyOne(text, btn) {
       navigator.clipboard.writeText(text).then(function () {
         const original = btn.textContent;
         btn.textContent = '✓ Kopirano';
-        setTimeout(function () {
-          btn.textContent = original;
-        }, 1500);
+        setTimeout(function () { btn.textContent = original; }, 1500);
       });
     }
 
@@ -296,11 +515,8 @@
       });
     }
 
-    // Omogući Enter tipku za pokretanje
     document.getElementById('urlInput').addEventListener('keypress', function (e) {
-      if (e.key === 'Enter') {
-        scrape();
-      }
+      if (e.key === 'Enter') { scrape(); }
     });
   </script>
 </body>
