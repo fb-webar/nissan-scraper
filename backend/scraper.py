@@ -1,5 +1,43 @@
 import re
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from playwright.async_api import async_playwright
+
+
+def build_interior_panorama(base_link: str) -> str:
+    """
+    Iz bilo kojeg IRIS linka gradi interijer 360 panorama link
+    (centerpano, width=4096, PI_ON).
+    """
+    parsed = urlparse(base_link)
+    params = parse_qs(parsed.query, keep_blank_values=True)
+
+    # Postavi parametre za interijer panoramu
+    params["width"] = ["4096"]
+    params["pov"] = ["centerpano,cgd"]
+    params["quality"] = ["85"]
+
+    # Ukloni eksterijer-specifične parametre
+    params.pop("y", None)
+    params.pop("bkgnd", None)
+
+    # Dodaj PI_ON u 'sa' ako ga nema, makni PE_ON
+    if "sa" in params:
+        sa_val = params["sa"][0]
+        sa_val = sa_val.replace(",PE_ON", "").replace("PE_ON", "")
+        if "PI_ON" not in sa_val:
+            sa_val = sa_val.rstrip(",") + ",PI_ON"
+        params["sa"] = [sa_val]
+
+    new_query = urlencode(params, doseq=True, safe=",")
+    new_url = urlunparse((
+        parsed.scheme,
+        parsed.netloc,
+        parsed.path,
+        parsed.params,
+        new_query,
+        parsed.fragment,
+    ))
+    return new_url
 
 
 async def scrape_nissan_images(url: str) -> dict:
@@ -21,7 +59,6 @@ async def scrape_nissan_images(url: str) -> dict:
                     "--disable-background-networking",
                     "--disable-default-apps",
                     "--disable-sync",
-                    "--metrics-recording-only",
                     "--mute-audio",
                 ],
             )
@@ -35,8 +72,6 @@ async def scrape_nissan_images(url: str) -> dict:
             )
             page = await context.new_page()
 
-            # Blokiraj teške resurse koji troše memoriju (fontovi, video, css)
-            # ali PUSTI slike jer nam trebaju IRIS pozivi
             async def block_heavy(route):
                 rtype = route.request.resource_type
                 if rtype in ("font", "media", "stylesheet"):
@@ -58,9 +93,9 @@ async def scrape_nissan_images(url: str) -> dict:
             except Exception:
                 pass
 
-            await page.wait_for_timeout(4000)
+            await page.wait_for_timeout(5000)
 
-            # Pokušaj kliknuti interijer (razni jezici/tržišta)
+            # Pokušaj otvoriti interijer (best-effort, nije kritično)
             interior_selectors = [
                 "text=Innenraum",
                 "text=Interior",
@@ -83,8 +118,7 @@ async def scrape_nissan_images(url: str) -> dict:
 
             await page.wait_for_timeout(2000)
 
-    except Exception as e:
-        # Ako sve pukne, vrati barem što smo uhvatili + poruku
+    except Exception:
         pass
     finally:
         if browser:
@@ -93,23 +127,45 @@ async def scrape_nissan_images(url: str) -> dict:
             except Exception:
                 pass
 
-    # Klasifikacija - fleksibilna za sve modele
+    # Klasifikacija uhvaćenih linkova
     exterior = []
-    interior = []
+    interior_captured = []
     other_iris = []
 
     for link in iris_links:
         low = link.lower()
-        if "pi_on" in low or "centerpano" in low or "width=4096" in low:
-            interior.append(link)
+        if (
+            "centerpano" in low
+            or "pi_on" in low
+            or "width=4096" in low
+            or re.search(r"pov=i\d", low)
+        ):
+            interior_captured.append(link)
         elif "pe_on" in low or re.search(r"pov=e\d", low):
             exterior.append(link)
         else:
             other_iris.append(link)
 
+    # GENERIRAJ interijer panoramu iz bilo kojeg linka (pouzdano!)
+    generated_interior = ""
+    all_links = list(iris_links)
+    if all_links:
+        # Uzmi eksterijer link kao bazu ako postoji, inače bilo koji
+        base = exterior[0] if exterior else all_links[0]
+        try:
+            generated_interior = build_interior_panorama(base)
+        except Exception:
+            generated_interior = ""
+
+    interior_final = sorted(set(interior_captured))
+    if generated_interior and generated_interior not in interior_final:
+        interior_final.insert(0, generated_interior)
+
     return {
         "exterior_360": sorted(set(exterior)),
-        "interior_pannellum": sorted(set(interior)),
+        "interior_pannellum": interior_final,
+        "generated_panorama": generated_interior,
         "other_images": sorted(set(other_iris)),
         "total": len(iris_links),
     }
+
