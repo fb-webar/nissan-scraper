@@ -3,10 +3,6 @@ from playwright.async_api import async_playwright
 
 
 async def scrape_nissan_images(url: str) -> dict:
-    """
-    Otvara Nissan konfigurator, presreće IRIS mrežne pozive
-    i izdvaja čiste linkove za eksterijer i interijer (Pannellum 360).
-    """
     iris_links = set()
 
     async with async_playwright() as p:
@@ -21,7 +17,6 @@ async def scrape_nissan_images(url: str) -> dict:
         )
         page = await context.new_page()
 
-        # Presreći SAMO IRIS pozive (prava slika vozila)
         def handle_response(response):
             if "heliosnissan.net/iris" in response.url or "mediaserver" in response.url:
                 iris_links.add(response.url)
@@ -35,10 +30,8 @@ async def scrape_nissan_images(url: str) -> dict:
 
         await page.wait_for_timeout(4000)
 
-        # Pokušaj kliknuti na interijer 360 da se Pannellum učita
-        # (probaj razne selektore - Nissan ih može mijenjati)
         interior_selectors = [
-            "text=Innenraum",          # DE
+            "text=Innenraum",
             "text=Interior",
             "text=360",
             "[data-view='interior']",
@@ -56,26 +49,21 @@ async def scrape_nissan_images(url: str) -> dict:
             except Exception:
                 continue
 
-        # Dodatno čekanje da panorama sigurno stigne
         await page.wait_for_timeout(3000)
 
-        # Scroll da potakne lazy load
         await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
         await page.wait_for_timeout(2000)
 
         await browser.close()
 
-    # Klasificiraj IRIS linkove
     exterior = []
     interior = []
     other_iris = []
 
     for link in iris_links:
         low = link.lower()
-        # Interijer: PI_ON ili pov=centerpano
         if "pi_on" in low or "centerpano" in low or "width=4096" in low:
             interior.append(link)
-        # Eksterijer: PE_ON ili pov=E
         elif "pe_on" in low or re.search(r"pov=e\d", low):
             exterior.append(link)
         else:
@@ -86,5 +74,4 @@ async def scrape_nissan_images(url: str) -> dict:
         "interior_pannellum": sorted(set(interior)),
         "other_images": sorted(set(other_iris)),
         "total": len(iris_links),
-    }
     }
