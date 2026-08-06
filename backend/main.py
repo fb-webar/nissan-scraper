@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import os
 
-from scraper import scrape_nissan_images
+from backend.scraper import scrape_nissan_images
 
 app = FastAPI(title="Nissan Image Scraper")
 
