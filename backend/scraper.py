@@ -4,68 +4,96 @@ from playwright.async_api import async_playwright
 
 async def scrape_nissan_images(url: str) -> dict:
     iris_links = set()
+    browser = None
 
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(
-            headless=True,
-            args=[
-                "--disable-gpu",
-                "--disable-dev-shm-usage",
-                "--disable-setuid-sandbox",
-                "--no-sandbox",
-                "--single-process",
-                "--no-zygote",
-                "--disable-extensions",
-            ],
-        )
-        context = await browser.new_context(
-            viewport={"width": 1920, "height": 1080},
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0 Safari/537.36"
-            ),
-        )
-        page = await context.new_page()
+    try:
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(
+                headless=True,
+                args=[
+                    "--disable-gpu",
+                    "--disable-dev-shm-usage",
+                    "--disable-setuid-sandbox",
+                    "--no-sandbox",
+                    "--single-process",
+                    "--no-zygote",
+                    "--disable-extensions",
+                    "--disable-background-networking",
+                    "--disable-default-apps",
+                    "--disable-sync",
+                    "--metrics-recording-only",
+                    "--mute-audio",
+                ],
+            )
+            context = await browser.new_context(
+                viewport={"width": 1366, "height": 768},
+                user_agent=(
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0 Safari/537.36"
+                ),
+            )
+            page = await context.new_page()
 
-        def handle_response(response):
-            if "heliosnissan.net/iris" in response.url or "mediaserver" in response.url:
-                iris_links.add(response.url)
+            # Blokiraj teške resurse koji troše memoriju (fontovi, video, css)
+            # ali PUSTI slike jer nam trebaju IRIS pozivi
+            async def block_heavy(route):
+                rtype = route.request.resource_type
+                if rtype in ("font", "media", "stylesheet"):
+                    await route.abort()
+                else:
+                    await route.continue_()
 
-        page.on("response", handle_response)
+            await page.route("**/*", block_heavy)
 
-        try:
-            await page.goto(url, wait_until="networkidle", timeout=60000)
-        except Exception:
-            pass
+            def handle_response(response):
+                u = response.url
+                if "heliosnissan.net/iris" in u or "mediaserver" in u:
+                    iris_links.add(u)
 
-        await page.wait_for_timeout(4000)
+            page.on("response", handle_response)
 
-        interior_selectors = [
-            "text=Innenraum",
-            "text=Interior",
-            "text=360",
-            "[data-view='interior']",
-            ".interior-view",
-            "[class*='interior']",
-            "[class*='pano']",
-        ]
-        for sel in interior_selectors:
             try:
-                el = page.locator(sel).first
-                if await el.is_visible(timeout=1500):
-                    await el.click(timeout=2000)
-                    await page.wait_for_timeout(3000)
-                    break
+                await page.goto(url, wait_until="domcontentloaded", timeout=45000)
             except Exception:
-                continue
+                pass
 
-        await page.wait_for_timeout(3000)
-        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(4000)
 
-        await browser.close()
+            # Pokušaj kliknuti interijer (razni jezici/tržišta)
+            interior_selectors = [
+                "text=Innenraum",
+                "text=Interior",
+                "text=Intérieur",
+                "text=Interieur",
+                "text=360",
+                "[data-view='interior']",
+                "[class*='interior']",
+                "[class*='pano']",
+            ]
+            for sel in interior_selectors:
+                try:
+                    el = page.locator(sel).first
+                    if await el.is_visible(timeout=1000):
+                        await el.click(timeout=2000)
+                        await page.wait_for_timeout(2500)
+                        break
+                except Exception:
+                    continue
 
+            await page.wait_for_timeout(2000)
+
+    except Exception as e:
+        # Ako sve pukne, vrati barem što smo uhvatili + poruku
+        pass
+    finally:
+        if browser:
+            try:
+                await browser.close()
+            except Exception:
+                pass
+
+    # Klasifikacija - fleksibilna za sve modele
     exterior = []
     interior = []
     other_iris = []
