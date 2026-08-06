@@ -1,15 +1,13 @@
-import asyncio
 import re
 from playwright.async_api import async_playwright
 
 
 async def scrape_nissan_images(url: str) -> dict:
     """
-    Otvara Nissan konfigurator, presreće mrežne pozive
-    i hvata linkove slika + Pannellum panorame.
+    Otvara Nissan konfigurator, presreće IRIS mrežne pozive
+    i izdvaja čiste linkove za eksterijer i interijer (Pannellum 360).
     """
-    captured_images = set()
-    pannellum_sources = set()
+    iris_links = set()
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -23,52 +21,70 @@ async def scrape_nissan_images(url: str) -> dict:
         )
         page = await context.new_page()
 
-        # Presretanje svih mrežnih zahtjeva za slike
-        image_extensions = (".jpg", ".jpeg", ".png", ".webp", ".avif")
-
+        # Presreći SAMO IRIS pozive (prava slika vozila)
         def handle_response(response):
-            resp_url = response.url.lower()
-            if any(ext in resp_url for ext in image_extensions):
-                captured_images.add(response.url)
-            # Pannellum panorame često sadrže ove ključne riječi
-            if any(k in resp_url for k in ["panorama", "pannellum", "equirect", "360", "interior"]):
-                pannellum_sources.add(response.url)
+            if "heliosnissan.net/iris" in response.url or "mediaserver" in response.url:
+                iris_links.add(response.url)
 
         page.on("response", handle_response)
 
         try:
             await page.goto(url, wait_until="networkidle", timeout=60000)
         except Exception:
-            # Ako networkidle zapne, nastavi svejedno
             pass
 
-        # Pričekaj da se dinamički sadržaj učita
-        await page.wait_for_timeout(5000)
+        await page.wait_for_timeout(4000)
 
-        # Pokušaj scrollati da se lazy-load slike učitaju
-        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        # Pokušaj kliknuti na interijer 360 da se Pannellum učita
+        # (probaj razne selektore - Nissan ih može mijenjati)
+        interior_selectors = [
+            "text=Innenraum",          # DE
+            "text=Interior",
+            "text=360",
+            "[data-view='interior']",
+            ".interior-view",
+            "[class*='interior']",
+            "[class*='pano']",
+        ]
+        for sel in interior_selectors:
+            try:
+                el = page.locator(sel).first
+                if await el.is_visible(timeout=1500):
+                    await el.click(timeout=2000)
+                    await page.wait_for_timeout(3000)
+                    break
+            except Exception:
+                continue
+
+        # Dodatno čekanje da panorama sigurno stigne
         await page.wait_for_timeout(3000)
 
-        # Pretraži i sam HTML za Pannellum config u <script> tagovima
-        html = await page.content()
-        pannellum_in_html = re.findall(
-            r'["\'](https?://[^"\']+(?:panorama|pannellum|equirect|360)[^"\']*)["\']',
-            html,
-            re.IGNORECASE,
-        )
-        for src in pannellum_in_html:
-            pannellum_sources.add(src)
+        # Scroll da potakne lazy load
+        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        await page.wait_for_timeout(2000)
 
         await browser.close()
 
-    # Klasificiraj rezultate
-    exterior = sorted([u for u in captured_images if "exterior" in u.lower() or "ext" in u.lower()])
-    interior = sorted(pannellum_sources)
-    others = sorted([u for u in captured_images if u not in exterior and u not in interior])
+    # Klasificiraj IRIS linkove
+    exterior = []
+    interior = []
+    other_iris = []
+
+    for link in iris_links:
+        low = link.lower()
+        # Interijer: PI_ON ili pov=centerpano
+        if "pi_on" in low or "centerpano" in low or "width=4096" in low:
+            interior.append(link)
+        # Eksterijer: PE_ON ili pov=E
+        elif "pe_on" in low or re.search(r"pov=e\d", low):
+            exterior.append(link)
+        else:
+            other_iris.append(link)
 
     return {
-        "exterior_360": exterior,
-        "interior_pannellum": interior,
-        "other_images": others,
-        "total": len(captured_images) + len(pannellum_sources),
+        "exterior_360": sorted(set(exterior)),
+        "interior_pannellum": sorted(set(interior)),
+        "other_images": sorted(set(other_iris)),
+        "total": len(iris_links),
+    }
     }
