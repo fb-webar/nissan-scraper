@@ -4,7 +4,6 @@ from playwright.async_api import async_playwright
 
 
 def build_interior_panorama(base_link: str) -> str:
-    """IRIS tip: generira 360 interijer panoramu."""
     parsed = urlparse(base_link)
     params = parse_qs(parsed.query, keep_blank_values=True)
     params["width"] = ["4096"]
@@ -26,19 +25,11 @@ def build_interior_panorama(base_link: str) -> str:
 
 
 def build_cloudfront_sequence(sample_link: str, max_images: int = 8) -> list:
-    """
-    CloudFront tip (novi Micra/Leaf): iz jedne slike rekonstruira sve.
-    Primjer: .../369/1_default.webp -> 1,2,3,4,5,6...
-    """
     m = re.search(r"(.*/)(\d+)(_default\.\w+)$", sample_link)
     if not m:
         return [sample_link]
-
     prefix, _, suffix = m.group(1), m.group(2), m.group(3)
-    links = []
-    for i in range(1, max_images + 1):
-        links.append(f"{prefix}{i}{suffix}")
-    return links
+    return [f"{prefix}{i}{suffix}" for i in range(1, max_images + 1)]
 
 
 async def scrape_nissan_images(url: str) -> dict:
@@ -70,7 +61,7 @@ async def scrape_nissan_images(url: str) -> dict:
 
             async def block_heavy(route):
                 rtype = route.request.resource_type
-                if rtype in ("font", "media", "stylesheet"):
+                if rtype in ("font", "media"):
                     await route.abort()
                 else:
                     await route.continue_()
@@ -79,11 +70,9 @@ async def scrape_nissan_images(url: str) -> dict:
 
             def handle_response(response):
                 u = response.url
-                # IRIS tip (Qashqai, X-Trail, stari Leaf)
                 if "heliosnissan.net/iris" in u or "mediaserver" in u:
                     iris_links.add(u)
-                # CloudFront tip (novi Micra/Leaf)
-                if "cloudfront.net" in u and "/vehicles/" in u and "_default" in u:
+                if "cloudfront.net" in u and "/vehicles/" in u:
                     cloudfront_links.add(u)
 
             page.on("response", handle_response)
@@ -93,14 +82,63 @@ async def scrape_nissan_images(url: str) -> dict:
             except Exception:
                 pass
 
-            await page.wait_for_timeout(6000)
+            await page.wait_for_timeout(4000)
 
-            # Scroll da se učitaju lazy slike (bitno za slider)
+            # Pokušaj prihvatiti cookie consent (razni gumbi)
+            cookie_selectors = [
+                "text=Akzeptieren",
+                "text=Accept All",
+                "text=Alle akzeptieren",
+                "text=Accept",
+                "text=Prihvati",
+                "[id*='accept']",
+                "[class*='accept']",
+                "button[class*='consent']",
+            ]
+            for sel in cookie_selectors:
+                try:
+                    el = page.locator(sel).first
+                    if await el.is_visible(timeout=1000):
+                        await el.click(timeout=2000)
+                        await page.wait_for_timeout(2000)
+                        break
+                except Exception:
+                    continue
+
+            await page.wait_for_timeout(3000)
+
+            # Scroll za lazy load
             try:
                 await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
                 await page.wait_for_timeout(2000)
                 await page.evaluate("window.scrollTo(0, 0)")
                 await page.wait_for_timeout(1500)
+            except Exception:
+                pass
+
+            # ČITAJ SVE <img> IZ HTML-a (za preloadane slike - Micra tip)
+            try:
+                img_srcs = await page.evaluate("""
+                    () => {
+                        const urls = [];
+                        document.querySelectorAll('img').forEach(img => {
+                            if (img.src) urls.push(img.src);
+                            if (img.dataset && img.dataset.src) urls.push(img.dataset.src);
+                            if (img.srcset) {
+                                img.srcset.split(',').forEach(s => {
+                                    const u = s.trim().split(' ')[0];
+                                    if (u) urls.push(u);
+                                });
+                            }
+                        });
+                        return urls;
+                    }
+                """)
+                for src in img_srcs:
+                    if "cloudfront.net" in src and "/vehicles/" in src:
+                        cloudfront_links.add(src)
+                    if "heliosnissan.net/iris" in src or "mediaserver" in src:
+                        iris_links.add(src)
             except Exception:
                 pass
 
@@ -144,8 +182,15 @@ async def scrape_nissan_images(url: str) -> dict:
     # ============ CLOUDFRONT TIP ============
     cloudfront_final = []
     if cloudfront_links:
-        sample = sorted(cloudfront_links)[0]
-        cloudfront_final = build_cloudfront_sequence(sample, max_images=8)
+        # Nađi link s "_default" obrascem za rekonstrukciju
+        default_sample = None
+        for cl in sorted(cloudfront_links):
+            if re.search(r"/\d+_default\.\w+$", cl):
+                default_sample = cl
+                break
+        if default_sample:
+            cloudfront_final = build_cloudfront_sequence(default_sample, max_images=8)
+        # Dodaj sve stvarno uhvaćene
         for cl in cloudfront_links:
             if cl not in cloudfront_final:
                 cloudfront_final.append(cl)
