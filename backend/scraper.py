@@ -3,26 +3,50 @@ from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 from playwright.async_api import async_playwright
 
 
-def build_interior_panorama(base_link: str) -> str:
-    """Generira 360° interijer panoramu iz bilo kojeg IRIS linka."""
+def _rebuild(base_link: str, overrides: dict, remove: list = None) -> str:
+    """Rebuild IRIS link s novim parametrima."""
     parsed = urlparse(base_link)
     params = parse_qs(parsed.query, keep_blank_values=True)
-    params["width"] = ["4096"]
-    params["pov"] = ["centerpano,cgd"]
-    params["quality"] = ["85"]
-    params.pop("y", None)
-    params.pop("bkgnd", None)
-    if "sa" in params:
-        sa_val = params["sa"][0]
-        sa_val = sa_val.replace(",PE_ON", "").replace("PE_ON", "")
-        if "PI_ON" not in sa_val:
-            sa_val = sa_val.rstrip(",") + ",PI_ON"
-        params["sa"] = [sa_val]
+    for k, v in overrides.items():
+        params[k] = [v]
+    if remove:
+        for r in remove:
+            params.pop(r, None)
     new_query = urlencode(params, doseq=True, safe=",")
     return urlunparse((
         parsed.scheme, parsed.netloc, parsed.path,
         parsed.params, new_query, parsed.fragment,
     ))
+
+
+def build_interior_panorama(base_link: str) -> str:
+    """Generira 360° interijer panoramu."""
+    parsed = urlparse(base_link)
+    params = parse_qs(parsed.query, keep_blank_values=True)
+    if "sa" in params:
+        sa_val = params["sa"][0].replace(",PE_ON", "").replace("PE_ON", "")
+        if "PI_ON" not in sa_val:
+            sa_val = sa_val.rstrip(",") + ",PI_ON"
+        params["sa"] = [sa_val]
+    params["width"] = ["4096"]
+    params["pov"] = ["centerpano,cgd"]
+    params["quality"] = ["85"]
+    params.pop("y", None)
+    params.pop("bkgnd", None)
+    new_query = urlencode(params, doseq=True, safe=",")
+    return urlunparse((
+        parsed.scheme, parsed.netloc, parsed.path,
+        parsed.params, new_query, parsed.fragment,
+    ))
+
+
+def build_exterior_rotation(base_link: str, count: int = 36) -> list:
+    """Generira svih 36 kutova eksterijer rotacije (E01-E36)."""
+    links = []
+    for i in range(1, count + 1):
+        pov = f"E{i:02d},cgd"
+        links.append(_rebuild(base_link, {"pov": pov}))
+    return links
 
 
 async def scrape_nissan_images(url: str) -> dict:
@@ -51,7 +75,6 @@ async def scrape_nissan_images(url: str) -> dict:
             )
             page = await context.new_page()
 
-            # Blokiraj nepotrebne resurse za brzinu
             async def block_heavy(route):
                 rtype = route.request.resource_type
                 if rtype in ("font", "media", "stylesheet"):
@@ -61,7 +84,6 @@ async def scrape_nissan_images(url: str) -> dict:
 
             await page.route("**/*", block_heavy)
 
-            # Hvataj samo IRIS linkove
             def handle_response(response):
                 u = response.url
                 if "heliosnissan.net/iris" in u or "mediaserver" in u:
@@ -86,7 +108,7 @@ async def scrape_nissan_images(url: str) -> dict:
                 pass
 
     # Klasifikacija
-    exterior = []
+    exterior_captured = []
     interior_captured = []
 
     for link in iris_links:
@@ -95,13 +117,14 @@ async def scrape_nissan_images(url: str) -> dict:
                 or re.search(r"pov=i\d", low)):
             interior_captured.append(link)
         elif "pe_on" in low or re.search(r"pov=e\d", low):
-            exterior.append(link)
+            exterior_captured.append(link)
 
-    # Generiraj 360° interijer panoramu
-    generated_interior = ""
     all_iris = list(iris_links)
-    if all_iris:
-        base = exterior[0] if exterior else all_iris[0]
+    base = exterior_captured[0] if exterior_captured else (all_iris[0] if all_iris else "")
+
+    # Generiraj interijer panoramu
+    generated_interior = ""
+    if base:
         try:
             generated_interior = build_interior_panorama(base)
         except Exception:
@@ -111,7 +134,15 @@ async def scrape_nissan_images(url: str) -> dict:
     if generated_interior and generated_interior not in interior_final:
         interior_final.insert(0, generated_interior)
 
-    # Šifre iz linka
+    # Generiraj svih 36 eksterijer kutova
+    exterior_rotation = []
+    if base:
+        try:
+            exterior_rotation = build_exterior_rotation(base, count=36)
+        except Exception:
+            exterior_rotation = sorted(set(exterior_captured))
+
+    # Šifre
     codes = {}
     if all_iris:
         parsed = urlparse(all_iris[0])
@@ -125,7 +156,8 @@ async def scrape_nissan_images(url: str) -> dict:
         }
 
     return {
-        "exterior_360": sorted(set(exterior)),
+        "exterior_captured": sorted(set(exterior_captured)),
+        "exterior_rotation": exterior_rotation,
         "interior_pannellum": interior_final,
         "codes": codes,
         "total": len(iris_links),
