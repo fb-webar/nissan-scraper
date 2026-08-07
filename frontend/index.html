@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Nissan Image Extractor</title>
+  <title>Nissan 360° Extractor</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -15,19 +15,19 @@
         <text x="32" y="35" font-size="8.5" fill="#ffffff" text-anchor="middle" font-weight="700" font-family="Arial, sans-serif" letter-spacing="0.5">NISSAN</text>
         <text x="76" y="40" font-size="26" fill="#ffffff" font-weight="700" letter-spacing="3" font-family="Arial, sans-serif">NISSAN</text>
       </svg>
-      <span class="header-title">Image <span>Extractor</span></span>
+      <span class="header-title">360° <span>Extractor</span></span>
     </div>
   </header>
 
   <div class="main">
     <div class="hero">
-      <h1>Image <span class="accent">Extractor</span></h1>
-      <p>Zalijepi link konfiguriranog vozila (bilo koji Nissan model ili tržište) i automatski izvuci linkove slika — 360° eksterijer/interijer ili slike vozila iz slidera.</p>
+      <h1>360° Image <span class="accent">Extractor</span></h1>
+      <p>Zalijepi link konfiguriranog vozila (Qashqai, X-Trail, Leaf...) i automatski izvuci linkove za 360° eksterijer i interijer panoramu.</p>
     </div>
 
     <div class="card">
       <div class="input-row">
-        <input id="urlInput" type="text" placeholder="https://www.nissan.de/vehicles/...">
+        <input id="urlInput" type="text" placeholder="https://www.nissan.de/fahrzeuge/...">
         <button class="btn" id="scrapeBtn" onclick="scrape()">Dohvati slike</button>
       </div>
       <div class="status" id="status"></div>
@@ -36,7 +36,7 @@
     <div class="results" id="results"></div>
   </div>
 
-  <footer class="footer">NISSAN IMAGE EXTRACTOR &middot; Interni alat</footer>
+  <footer class="footer">NISSAN 360° EXTRACTOR &middot; Interni alat</footer>
 
   <script>
     async function scrape() {
@@ -53,7 +53,7 @@
 
       btn.disabled = true;
       status.className = 'status';
-      status.innerHTML = '<span class="spinner"></span> Učitavam stranicu i tražim slike... (20-40s)';
+      status.innerHTML = '<span class="spinner"></span> Učitavam stranicu i tražim slike...';
       results.innerHTML = '';
 
       try {
@@ -65,7 +65,7 @@
 
         const text = await res.text();
         if (!text) {
-          throw new Error('Server nije vratio odgovor (moguć restart zbog memorije). Pokušaj ponovno za nekoliko sekundi.');
+          throw new Error('Server nije vratio odgovor. Pokušaj ponovno za nekoliko sekundi.');
         }
 
         let json;
@@ -98,34 +98,23 @@
         renderInfoCard(data.codes);
       }
 
-      // IRIS tip (Qashqai, X-Trail, stari Leaf)
       renderSection('🚙 Eksterijer 360°', data.exterior_360);
       renderSection('🛋️ Interijer (360° Panorama)', data.interior_pannellum);
 
-      // CloudFront tip (novi Micra/Leaf)
-      if (data.cloudfront_images && data.cloudfront_images.length > 0) {
-        renderSection('📷 Slike vozila (Micra/Leaf tip)', data.cloudfront_images);
-      }
-
-      renderSection('🖼️ Ostale slike', data.other_images);
-
       const noMain =
         (!data.exterior_360 || data.exterior_360.length === 0) &&
-        (!data.interior_pannellum || data.interior_pannellum.length === 0) &&
-        (!data.cloudfront_images || data.cloudfront_images.length === 0);
+        (!data.interior_pannellum || data.interior_pannellum.length === 0);
 
       if (noMain) {
         const div = document.createElement('div');
         div.className = 'section';
-        div.innerHTML = '<div class="section-body"><p class="empty">Nisu pronađene glavne slike vozila. Provjeri link ili pokušaj ponovno.</p></div>';
+        div.innerHTML = '<div class="section-body"><p class="empty">Nisu pronađene slike. Provjeri je li link IRIS konfigurator (Qashqai/X-Trail/Leaf) ili pokušaj ponovno.</p></div>';
         results.appendChild(div);
       }
     }
 
     function renderInfoCard(codes) {
       const results = document.getElementById('results');
-
-      // Ako nema nijedne šifre (npr. CloudFront tip), ne prikazuj karticu
       const hasCodes = codes.vehicle_code || codes.paint_code || codes.fabric_code;
       if (!hasCodes) return;
 
