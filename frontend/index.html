@@ -21,8 +21,8 @@
 
   <div class="main">
     <div class="hero">
-      <h1>360° Image <span class="accent">Extractor</span></h1>
-      <p>Zalijepi link konfiguriranog vozila (bilo koji Nissan model ili tržište) i automatski izvuci linkove za eksterijer i 360° interijer panoramu.</p>
+      <h1>Image <span class="accent">Extractor</span></h1>
+      <p>Zalijepi link konfiguriranog vozila (bilo koji Nissan model ili tržište) i automatski izvuci linkove slika — 360° eksterijer/interijer ili slike vozila iz slidera.</p>
     </div>
 
     <div class="card">
@@ -98,13 +98,21 @@
         renderInfoCard(data.codes);
       }
 
+      // IRIS tip (Qashqai, X-Trail, stari Leaf)
       renderSection('🚙 Eksterijer 360°', data.exterior_360);
       renderSection('🛋️ Interijer (360° Panorama)', data.interior_pannellum);
+
+      // CloudFront tip (novi Micra/Leaf)
+      if (data.cloudfront_images && data.cloudfront_images.length > 0) {
+        renderSection('📷 Slike vozila (Micra/Leaf tip)', data.cloudfront_images);
+      }
+
       renderSection('🖼️ Ostale slike', data.other_images);
 
       const noMain =
         (!data.exterior_360 || data.exterior_360.length === 0) &&
-        (!data.interior_pannellum || data.interior_pannellum.length === 0);
+        (!data.interior_pannellum || data.interior_pannellum.length === 0) &&
+        (!data.cloudfront_images || data.cloudfront_images.length === 0);
 
       if (noMain) {
         const div = document.createElement('div');
@@ -116,6 +124,11 @@
 
     function renderInfoCard(codes) {
       const results = document.getElementById('results');
+
+      // Ako nema nijedne šifre (npr. CloudFront tip), ne prikazuj karticu
+      const hasCodes = codes.vehicle_code || codes.paint_code || codes.fabric_code;
+      if (!hasCodes) return;
+
       const card = document.createElement('div');
       card.className = 'section info-card';
 
@@ -123,8 +136,6 @@
       if (codes.vehicle_code) rows += infoRow('Šifra vozila', '<span class="code-pill">' + codes.vehicle_code + '</span>');
       if (codes.paint_code) rows += infoRow('Šifra boje', '<span class="code-pill">' + codes.paint_code + '</span>');
       if (codes.fabric_code) rows += infoRow('Šifra interijera', '<span class="code-pill">' + codes.fabric_code + '</span>');
-
-      if (!rows) return;
 
       card.innerHTML =
         '<div class="section-header"><h3>📋 Šifre konfiguracije</h3></div>' +
