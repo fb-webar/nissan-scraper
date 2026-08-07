@@ -28,9 +28,6 @@ async def extract_vehicle_info(page):
     """Izvuci čitljive informacije o vozilu sa stranice."""
     info = {
         "model": "",
-        "color": "",
-        "is_dual_tone": False,
-        "interior": "",
         "grade": "",
         "price": "",
     }
@@ -48,45 +45,7 @@ async def extract_vehicle_info(page):
     except Exception:
         pass
 
-    # BOJA - dual tone prioritet
-    dual_patterns = [
-        r"(Two-Tone[^\n]+?Roof)",
-        r"(Two-Tone[^\n]{3,60})",
-        r"(Zwei-Farben[^\n]{3,60})",
-        r"(Bi-Ton[^\n]{3,60})",
-        r"(Dual[- ]?Tone[^\n]{3,60})",
-    ]
-    for pat in dual_patterns:
-        m = re.search(pat, body_text, re.IGNORECASE)
-        if m:
-            info["color"] = m.group(1).strip()
-            info["is_dual_tone"] = True
-            break
-
-    # Single boja
-    if not info["color"]:
-        single_patterns = [
-            r"\b((?:Diamond|Fuji|Ceramic|Pearl|Magnetic|Gun|Storm|Champagne)\s+\w+)\b",
-            r"\b([A-Z][a-z]+\s+(?:Red|Black|White|Silver|Grey|Gray|Blue|Bronze|Green|Pearl))\b",
-        ]
-        for pat in single_patterns:
-            m = re.search(pat, body_text)
-            if m:
-                info["color"] = m.group(1).strip()
-                break
-
-    # INTERIJER
-    interior_patterns = [
-        r"([A-Z][a-z]+\s*[-–]\s*(?:Synthetic\s+)?(?:Leather|Cloth|Stoff|Alcantara|Tissu)[^\n]{0,50})",
-        r"([A-Z][a-z]+\s+(?:Leather|Cloth|Stoff|Alcantara)[^\n]{0,40})",
-    ]
-    for pat in interior_patterns:
-        m = re.search(pat, body_text, re.IGNORECASE)
-        if m:
-            info["interior"] = m.group(1).strip()
-            break
-
-    # GRADE
+    # GRADE / VERZIJA
     grade_keywords = ["N-Connecta", "N-Design", "Tekna+", "Tekna", "Acenta Premium",
                       "Acenta", "Visia", "Premiere Edition"]
     for kw in grade_keywords:
@@ -207,7 +166,6 @@ async def scrape_nissan_images(url: str) -> dict:
         parsed = urlparse(all_links[0])
         qs = parse_qs(parsed.query)
         codes = {
-            "vehicle_code": qs.get("vehicle", [""])[0],
             "paint_code": qs.get("paint", [""])[0],
             "fabric_code": qs.get("fabric", [""])[0],
         }
