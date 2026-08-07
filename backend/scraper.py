@@ -24,50 +24,8 @@ def build_interior_panorama(base_link: str) -> str:
     ))
 
 
-async def extract_vehicle_info(page):
-    """Izvuci čitljive informacije o vozilu sa stranice."""
-    info = {
-        "model": "",
-        "grade": "",
-        "price": "",
-    }
-
-    try:
-        body_text = await page.inner_text("body")
-    except Exception:
-        body_text = ""
-
-    # MODEL
-    try:
-        m = re.search(r"NISSAN\s+([\w\-]+)", body_text, re.IGNORECASE)
-        if m:
-            info["model"] = m.group(1)
-    except Exception:
-        pass
-
-    # GRADE / VERZIJA
-    grade_keywords = ["N-Connecta", "N-Design", "Tekna+", "Tekna", "Acenta Premium",
-                      "Acenta", "Visia", "Premiere Edition"]
-    for kw in grade_keywords:
-        if kw in body_text:
-            info["grade"] = kw
-            break
-
-    # CIJENA
-    try:
-        m = re.search(r"(?:Total Price|Gesamtpreis|Prix total)[^\d]*([\d.,]+\s*[€£])",
-                      body_text, re.IGNORECASE)
-        if m:
-            info["price"] = m.group(1).strip()
-    except Exception:
-        pass
-
-    return info
-
-
 async def scrape_nissan_images(url: str) -> dict:
     iris_links = set()
-    vehicle_info = {}
     browser = None
 
     try:
@@ -113,14 +71,7 @@ async def scrape_nissan_images(url: str) -> dict:
             except Exception:
                 pass
 
-            await page.wait_for_timeout(5000)
-
-            try:
-                vehicle_info = await extract_vehicle_info(page)
-            except Exception:
-                vehicle_info = {}
-
-            await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(6000)
 
     except Exception:
         pass
@@ -131,7 +82,7 @@ async def scrape_nissan_images(url: str) -> dict:
             except Exception:
                 pass
 
-    # Klasifikacija
+    # Klasifikacija linkova
     exterior = []
     interior_captured = []
     other_iris = []
@@ -146,7 +97,7 @@ async def scrape_nissan_images(url: str) -> dict:
         else:
             other_iris.append(link)
 
-    # Generiraj interijer panoramu
+    # Generiraj interijer panoramu iz bilo kojeg linka
     generated_interior = ""
     all_links = list(iris_links)
     if all_links:
@@ -160,12 +111,21 @@ async def scrape_nissan_images(url: str) -> dict:
     if generated_interior and generated_interior not in interior_final:
         interior_final.insert(0, generated_interior)
 
-    # Dekodiraj šifre iz linka
+    # Dekodiraj šifre iz linka (uvijek točno, neovisno o tržištu)
     codes = {}
     if all_links:
         parsed = urlparse(all_links[0])
         qs = parse_qs(parsed.query)
+
+        # Očisti šifru vozila: "8_T33" -> "T33", "8_T33D" -> "T33D"
+        raw_vehicle = qs.get("vehicle", [""])[0]
+        if "_" in raw_vehicle:
+            vehicle_code = raw_vehicle.split("_", 1)[1]
+        else:
+            vehicle_code = raw_vehicle
+
         codes = {
+            "vehicle_code": vehicle_code,
             "paint_code": qs.get("paint", [""])[0],
             "fabric_code": qs.get("fabric", [""])[0],
         }
@@ -175,7 +135,6 @@ async def scrape_nissan_images(url: str) -> dict:
         "interior_pannellum": interior_final,
         "generated_panorama": generated_interior,
         "other_images": sorted(set(other_iris)),
-        "vehicle_info": vehicle_info,
         "codes": codes,
         "total": len(iris_links),
     }
