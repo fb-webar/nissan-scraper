@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 import os
 
@@ -16,6 +16,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")
+
+# Posluži statičke datoteke (CSS, itd.)
+app.mount("/static", StaticFiles(directory=frontend_path), name="static")
+
 
 class ScrapeRequest(BaseModel):
     url: str
@@ -28,10 +33,6 @@ async def scrape(req: ScrapeRequest):
         return {"success": True, "data": result}
     except Exception as e:
         return {"success": False, "error": str(e)}
-
-
-# Posluži frontend
-frontend_path = os.path.join(os.path.dirname(__file__), "..", "frontend")
 
 
 @app.get("/")
