@@ -29,7 +29,10 @@
       <textarea id="urlInput" rows="3" placeholder="Zalijepi link(ove) — svaki u novi red...&#10;https://www.nissan.de/fahrzeuge/...&#10;https://www.nissan.de/fahrzeuge/..."></textarea>
       <div class="input-actions">
         <span class="hint" id="linkCount">0 linkova</span>
-        <button class="btn" id="scrapeBtn" onclick="scrapeAll()">Dohvati slike</button>
+        <div style="display:flex; gap:10px;">
+          <button class="btn-secondary" id="toggleAllBtn" onclick="toggleAll()" style="display:none;">Skupi sve</button>
+          <button class="btn" id="scrapeBtn" onclick="scrapeAll()">Dohvati slike</button>
+        </div>
       </div>
       <div class="status" id="status"></div>
     </div>
@@ -55,10 +58,9 @@
     async function scrapeAll() {
       const links = getLinks();
       const btn = document.getElementById('scrapeBtn');
-      const status = document.getElementById('status');
       const results = document.getElementById('results');
+      const toggleBtn = document.getElementById('toggleAllBtn');
 
-      // Validacija
       if (links.length === 0) {
         setStatus('error', '⚠️ Unesi barem jedan link!');
         return;
@@ -71,8 +73,8 @@
 
       btn.disabled = true;
       results.innerHTML = '';
+      toggleBtn.style.display = 'none';
 
-      // Batch - obradi jedan po jedan (sekvencijalno = štedi memoriju)
       for (let i = 0; i < links.length; i++) {
         const url = links[i];
         const prefix = links.length > 1 ? ('[' + (i + 1) + '/' + links.length + '] ') : '';
@@ -105,6 +107,8 @@
 
       setStatus('success', '✅ Obrada završena (' + links.length + ' ' + (links.length === 1 ? 'link' : 'linkova') + ').');
       btn.disabled = false;
+      toggleBtn.style.display = 'inline-block';
+      toggleBtn.textContent = 'Skupi sve';
     }
 
     function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
@@ -113,6 +117,17 @@
       const status = document.getElementById('status');
       status.className = 'status' + (cls ? ' ' + cls : '');
       status.innerHTML = html;
+    }
+
+    function toggleAll() {
+      const sections = document.querySelectorAll('#results .section');
+      const btn = document.getElementById('toggleAllBtn');
+      const shouldCollapse = btn.textContent === 'Skupi sve';
+      sections.forEach(function (s) {
+        if (shouldCollapse) s.classList.add('collapsed');
+        else s.classList.remove('collapsed');
+      });
+      btn.textContent = shouldCollapse ? 'Raširi sve' : 'Skupi sve';
     }
 
     function renderResult(url, data, index) {
@@ -127,8 +142,8 @@
 
       if (data.codes) renderInfoCard(data.codes);
 
-      renderSection('🚙 Eksterijer 360° (rotacija)', data.exterior_rotation, true);
-      renderSection('🛋️ Interijer (360° Panorama)', data.interior_pannellum, true);
+      renderSection('🚙 Eksterijer 360° (rotacija)', data.exterior_rotation, true, true);
+      renderSection('🛋️ Interijer (360° Panorama)', data.interior_pannellum, true, false);
 
       const noMain =
         (!data.exterior_rotation || data.exterior_rotation.length === 0) &&
@@ -164,9 +179,18 @@
       if (codes.paint_code) rows += infoRow('Šifra boje', '<span class="code-pill">' + codes.paint_code + '</span>');
       if (codes.fabric_code) rows += infoRow('Šifra interijera', '<span class="code-pill">' + codes.fabric_code + '</span>');
 
-      card.innerHTML =
-        '<div class="section-header"><h3>📋 Šifre konfiguracije</h3></div>' +
-        '<div class="section-body"><table class="info-table">' + rows + '</table></div>';
+      const header = document.createElement('div');
+      header.className = 'section-header clickable';
+      header.innerHTML = '<h3><span class="toggle-arrow">▼</span> 📋 Šifre konfiguracije</h3>';
+
+      const body = document.createElement('div');
+      body.className = 'section-body';
+      body.innerHTML = '<table class="info-table">' + rows + '</table>';
+
+      header.onclick = function () { card.classList.toggle('collapsed'); };
+
+      card.appendChild(header);
+      card.appendChild(body);
       results.appendChild(card);
     }
 
@@ -174,7 +198,7 @@
       return '<tr><td class="info-label">' + label + '</td><td class="info-value">' + value + '</td></tr>';
     }
 
-    function renderSection(title, links, withPreview) {
+    function renderSection(title, links, withPreview, collapsed) {
       const results = document.getElementById('results');
       const count = links ? links.length : 0;
 
@@ -182,16 +206,29 @@
       section.className = 'section';
 
       const header = document.createElement('div');
-      header.className = 'section-header';
-      header.innerHTML = '<h3>' + title + ' <span class="badge">' + count + '</span></h3>';
+      header.className = 'section-header clickable';
+
+      const titleWrap = document.createElement('h3');
+      titleWrap.innerHTML = '<span class="toggle-arrow">▼</span> ' + title + ' <span class="badge">' + count + '</span>';
+      header.appendChild(titleWrap);
+
+      const headerRight = document.createElement('div');
+      headerRight.style.display = 'flex';
+      headerRight.style.gap = '10px';
+      headerRight.style.alignItems = 'center';
 
       if (count > 0) {
         const copyAllBtn = document.createElement('button');
         copyAllBtn.className = 'copy-all';
         copyAllBtn.textContent = '📋 Kopiraj sve';
-        copyAllBtn.onclick = function () { copyAll(links); };
-        header.appendChild(copyAllBtn);
+        copyAllBtn.onclick = function (e) {
+          e.stopPropagation();
+          copyAll(links);
+        };
+        headerRight.appendChild(copyAllBtn);
       }
+      header.appendChild(headerRight);
+
       section.appendChild(header);
 
       const body = document.createElement('div');
@@ -199,52 +236,57 @@
 
       if (count === 0) {
         body.innerHTML = '<p class="empty">Nema rezultata.</p>';
-        section.appendChild(body);
-        results.appendChild(section);
-        return;
+      } else {
+        links.forEach(function (link) {
+          const item = document.createElement('div');
+          item.className = 'img-item';
+
+          if (withPreview) {
+            const thumb = document.createElement('img');
+            thumb.className = 'thumb';
+            thumb.src = link;
+            thumb.loading = 'lazy';
+            thumb.onerror = function () { thumb.style.display = 'none'; };
+            item.appendChild(thumb);
+          }
+
+          const a = document.createElement('a');
+          a.href = link;
+          a.target = '_blank';
+          a.className = 'img-link';
+          a.textContent = link;
+
+          const group = document.createElement('div');
+          group.className = 'btn-group';
+
+          const copyBtn = document.createElement('button');
+          copyBtn.className = 'mini-btn';
+          copyBtn.textContent = 'Kopiraj';
+          copyBtn.onclick = function () { copyOne(link, copyBtn); };
+
+          const dlBtn = document.createElement('button');
+          dlBtn.className = 'mini-btn dl';
+          dlBtn.textContent = '⬇ Skini';
+          dlBtn.onclick = function () { downloadImage(link); };
+
+          group.appendChild(copyBtn);
+          group.appendChild(dlBtn);
+
+          item.appendChild(a);
+          item.appendChild(group);
+          body.appendChild(item);
+        });
       }
 
-      links.forEach(function (link) {
-        const item = document.createElement('div');
-        item.className = 'img-item';
-
-        if (withPreview) {
-          const thumb = document.createElement('img');
-          thumb.className = 'thumb';
-          thumb.src = link;
-          thumb.loading = 'lazy';
-          thumb.onerror = function () { thumb.style.display = 'none'; };
-          item.appendChild(thumb);
-        }
-
-        const a = document.createElement('a');
-        a.href = link;
-        a.target = '_blank';
-        a.className = 'img-link';
-        a.textContent = link;
-
-        const group = document.createElement('div');
-        group.className = 'btn-group';
-
-        const copyBtn = document.createElement('button');
-        copyBtn.className = 'mini-btn';
-        copyBtn.textContent = 'Kopiraj';
-        copyBtn.onclick = function () { copyOne(link, copyBtn); };
-
-        const dlBtn = document.createElement('button');
-        dlBtn.className = 'mini-btn dl';
-        dlBtn.textContent = '⬇ Skini';
-        dlBtn.onclick = function () { downloadImage(link); };
-
-        group.appendChild(copyBtn);
-        group.appendChild(dlBtn);
-
-        item.appendChild(a);
-        item.appendChild(group);
-        body.appendChild(item);
-      });
-
       section.appendChild(body);
+
+      if (collapsed) {
+        section.classList.add('collapsed');
+      }
+      header.onclick = function () {
+        section.classList.toggle('collapsed');
+      };
+
       results.appendChild(section);
     }
 
@@ -269,7 +311,6 @@
         const a = document.createElement('a');
         const objUrl = URL.createObjectURL(blob);
         a.href = objUrl;
-        // Ime datoteke iz pov parametra
         const povMatch = url.match(/pov=([^,&]+)/);
         const name = povMatch ? povMatch[1] : 'nissan-image';
         a.download = name + '.jpg';
@@ -278,7 +319,6 @@
         document.body.removeChild(a);
         URL.revokeObjectURL(objUrl);
       } catch (e) {
-        // Fallback - otvori u novom tabu ako fetch ne uspije (CORS)
         window.open(url, '_blank');
       }
     }
