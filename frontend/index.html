@@ -22,13 +22,14 @@
   <div class="main">
     <div class="hero">
       <h1>360° Image <span class="accent">Extractor</span></h1>
-      <p>Zalijepi link konfiguriranog vozila (Qashqai, X-Trail, Leaf...) i automatski izvuci linkove za 360° eksterijer i interijer panoramu.</p>
+      <p>Zalijepi jedan ili više linkova (svaki u novi red) konfiguriranih vozila i automatski izvuci 360° eksterijer rotaciju i interijer panoramu.</p>
     </div>
 
     <div class="card">
-      <div class="input-row">
-        <input id="urlInput" type="text" placeholder="https://www.nissan.de/fahrzeuge/...">
-        <button class="btn" id="scrapeBtn" onclick="scrape()">Dohvati slike</button>
+      <textarea id="urlInput" rows="3" placeholder="Zalijepi link(ove) — svaki u novi red...&#10;https://www.nissan.de/fahrzeuge/...&#10;https://www.nissan.de/fahrzeuge/..."></textarea>
+      <div class="input-actions">
+        <span class="hint" id="linkCount">0 linkova</span>
+        <button class="btn" id="scrapeBtn" onclick="scrapeAll()">Dohvati slike</button>
       </div>
       <div class="status" id="status"></div>
     </div>
@@ -39,78 +40,115 @@
   <footer class="footer">NISSAN 360° EXTRACTOR &middot; Interni alat</footer>
 
   <script>
-    async function scrape() {
-      const url = document.getElementById('urlInput').value.trim();
+    const urlInput = document.getElementById('urlInput');
+    const linkCount = document.getElementById('linkCount');
+
+    urlInput.addEventListener('input', function () {
+      const links = getLinks();
+      linkCount.textContent = links.length + (links.length === 1 ? ' link' : ' linkova');
+    });
+
+    function getLinks() {
+      return urlInput.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    }
+
+    async function scrapeAll() {
+      const links = getLinks();
       const btn = document.getElementById('scrapeBtn');
       const status = document.getElementById('status');
       const results = document.getElementById('results');
 
-      if (!url) {
-        status.className = 'status error';
-        status.textContent = '⚠️ Molim unesi link!';
+      // Validacija
+      if (links.length === 0) {
+        setStatus('error', '⚠️ Unesi barem jedan link!');
+        return;
+      }
+      const invalid = links.filter(l => !l.toLowerCase().includes('nissan.'));
+      if (invalid.length > 0) {
+        setStatus('error', '⚠️ Neki linkovi ne izgledaju kao Nissan linkovi. Provjeri unos.');
         return;
       }
 
       btn.disabled = true;
-      status.className = 'status';
-      status.innerHTML = '<span class="spinner"></span> Učitavam stranicu i tražim slike...';
       results.innerHTML = '';
 
-      try {
-        const res = await fetch('/scrape', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url })
-        });
+      // Batch - obradi jedan po jedan (sekvencijalno = štedi memoriju)
+      for (let i = 0; i < links.length; i++) {
+        const url = links[i];
+        const prefix = links.length > 1 ? ('[' + (i + 1) + '/' + links.length + '] ') : '';
 
-        const text = await res.text();
-        if (!text) {
-          throw new Error('Server nije vratio odgovor. Pokušaj ponovno za nekoliko sekundi.');
-        }
+        setStatus('', '<span class="spinner"></span> ' + prefix + 'Otvaram stranicu...');
+        await sleep(300);
+        setStatus('', '<span class="spinner"></span> ' + prefix + 'Tražim 360° slike... (može potrajati)');
 
-        let json;
         try {
-          json = JSON.parse(text);
-        } catch (parseErr) {
-          throw new Error('Neispravan odgovor servera. Pokušaj ponovno.');
-        }
+          const res = await fetch('/scrape', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+          });
 
-        if (!json.success) {
-          throw new Error(json.error || 'Nepoznata greška na serveru.');
-        }
+          const text = await res.text();
+          if (!text) throw new Error('Server nije vratio odgovor. Pokušaj ponovno.');
 
-        render(json.data);
-        status.className = 'status success';
-        status.textContent = '✅ Pronađeno ukupno ' + json.data.total + ' izvornih slika.';
-      } catch (e) {
-        status.className = 'status error';
-        status.textContent = '❌ Greška: ' + e.message;
-      } finally {
-        btn.disabled = false;
+          let json;
+          try { json = JSON.parse(text); }
+          catch (e) { throw new Error('Neispravan odgovor servera.'); }
+
+          if (!json.success) throw new Error(json.error || 'Nepoznata greška.');
+
+          renderResult(url, json.data, links.length > 1 ? (i + 1) : null);
+        } catch (e) {
+          renderError(url, e.message, links.length > 1 ? (i + 1) : null);
+        }
       }
+
+      setStatus('success', '✅ Obrada završena (' + links.length + ' ' + (links.length === 1 ? 'link' : 'linkova') + ').');
+      btn.disabled = false;
     }
 
-    function render(data) {
-      const results = document.getElementById('results');
-      results.innerHTML = '';
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-      if (data.codes) {
-        renderInfoCard(data.codes);
+    function setStatus(cls, html) {
+      const status = document.getElementById('status');
+      status.className = 'status' + (cls ? ' ' + cls : '');
+      status.innerHTML = html;
+    }
+
+    function renderResult(url, data, index) {
+      const results = document.getElementById('results');
+
+      if (index) {
+        const divider = document.createElement('div');
+        divider.className = 'batch-divider';
+        divider.textContent = 'Vozilo #' + index;
+        results.appendChild(divider);
       }
 
-      renderSection('🚙 Eksterijer 360°', data.exterior_360);
-      renderSection('🛋️ Interijer (360° Panorama)', data.interior_pannellum);
+      if (data.codes) renderInfoCard(data.codes);
+
+      renderSection('🚙 Eksterijer 360° (rotacija)', data.exterior_rotation, true);
+      renderSection('🛋️ Interijer (360° Panorama)', data.interior_pannellum, true);
 
       const noMain =
-        (!data.exterior_360 || data.exterior_360.length === 0) &&
+        (!data.exterior_rotation || data.exterior_rotation.length === 0) &&
         (!data.interior_pannellum || data.interior_pannellum.length === 0);
 
       if (noMain) {
         const div = document.createElement('div');
         div.className = 'section';
-        div.innerHTML = '<div class="section-body"><p class="empty">Nisu pronađene slike. Provjeri je li link IRIS konfigurator (Qashqai/X-Trail/Leaf) ili pokušaj ponovno.</p></div>';
+        div.innerHTML = '<div class="section-body"><p class="empty">Nisu pronađene slike. Provjeri je li link IRIS konfigurator (Qashqai/X-Trail/Leaf).</p></div>';
         results.appendChild(div);
       }
+    }
+
+    function renderError(url, msg, index) {
+      const results = document.getElementById('results');
+      const div = document.createElement('div');
+      div.className = 'section';
+      const label = index ? ('Vozilo #' + index + ' — ') : '';
+      div.innerHTML = '<div class="section-body"><p class="empty" style="color:#c3002f">❌ ' + label + 'Greška: ' + msg + '</p></div>';
+      results.appendChild(div);
     }
 
     function renderInfoCard(codes) {
@@ -136,7 +174,7 @@
       return '<tr><td class="info-label">' + label + '</td><td class="info-value">' + value + '</td></tr>';
     }
 
-    function renderSection(title, links) {
+    function renderSection(title, links, withPreview) {
       const results = document.getElementById('results');
       const count = links ? links.length : 0;
 
@@ -154,14 +192,13 @@
         copyAllBtn.onclick = function () { copyAll(links); };
         header.appendChild(copyAllBtn);
       }
-
       section.appendChild(header);
 
       const body = document.createElement('div');
       body.className = 'section-body';
 
       if (count === 0) {
-        body.innerHTML = '<p class="empty">Nema rezultata u ovoj kategoriji.</p>';
+        body.innerHTML = '<p class="empty">Nema rezultata.</p>';
         section.appendChild(body);
         results.appendChild(section);
         return;
@@ -170,6 +207,15 @@
       links.forEach(function (link) {
         const item = document.createElement('div');
         item.className = 'img-item';
+
+        if (withPreview) {
+          const thumb = document.createElement('img');
+          thumb.className = 'thumb';
+          thumb.src = link;
+          thumb.loading = 'lazy';
+          thumb.onerror = function () { thumb.style.display = 'none'; };
+          item.appendChild(thumb);
+        }
 
         const a = document.createElement('a');
         a.href = link;
@@ -185,13 +231,13 @@
         copyBtn.textContent = 'Kopiraj';
         copyBtn.onclick = function () { copyOne(link, copyBtn); };
 
-        const openBtn = document.createElement('button');
-        openBtn.className = 'mini-btn';
-        openBtn.textContent = 'Otvori';
-        openBtn.onclick = function () { window.open(link, '_blank'); };
+        const dlBtn = document.createElement('button');
+        dlBtn.className = 'mini-btn dl';
+        dlBtn.textContent = '⬇ Skini';
+        dlBtn.onclick = function () { downloadImage(link); };
 
         group.appendChild(copyBtn);
-        group.appendChild(openBtn);
+        group.appendChild(dlBtn);
 
         item.appendChild(a);
         item.appendChild(group);
@@ -204,9 +250,9 @@
 
     function copyOne(text, btn) {
       navigator.clipboard.writeText(text).then(function () {
-        const original = btn.textContent;
-        btn.textContent = '✓ Kopirano';
-        setTimeout(function () { btn.textContent = original; }, 1500);
+        const o = btn.textContent;
+        btn.textContent = '✓';
+        setTimeout(function () { btn.textContent = o; }, 1200);
       });
     }
 
@@ -216,9 +262,26 @@
       });
     }
 
-    document.getElementById('urlInput').addEventListener('keypress', function (e) {
-      if (e.key === 'Enter') { scrape(); }
-    });
+    async function downloadImage(url) {
+      try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        const objUrl = URL.createObjectURL(blob);
+        a.href = objUrl;
+        // Ime datoteke iz pov parametra
+        const povMatch = url.match(/pov=([^,&]+)/);
+        const name = povMatch ? povMatch[1] : 'nissan-image';
+        a.download = name + '.jpg';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(objUrl);
+      } catch (e) {
+        // Fallback - otvori u novom tabu ako fetch ne uspije (CORS)
+        window.open(url, '_blank');
+      }
+    }
   </script>
 </body>
 </html>
