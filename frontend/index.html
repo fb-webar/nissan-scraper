@@ -4,70 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Nissan Image Extractor</title>
-  <style>
-    :root {
-      --nissan-red: #c3002f;
-      --nissan-red-dark: #a00026;
-      --nissan-black: #0a0a0a;
-      --nissan-gray: #1a1a1a;
-      --light-gray: #f5f5f5;
-      --border-gray: #e0e0e0;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Helvetica Neue', Arial, sans-serif; }
-    body { background: var(--light-gray); color: var(--nissan-black); min-height: 100vh; }
-    .header { background: var(--nissan-black); padding: 18px 40px; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 2px 12px rgba(0,0,0,0.2); }
-    .header-left { display: flex; align-items: center; gap: 20px; }
-    .logo { height: 42px; width: auto; }
-    .header-title { color: #fff; font-size: 15px; font-weight: 300; letter-spacing: 3px; text-transform: uppercase; border-left: 1px solid rgba(255,255,255,0.3); padding-left: 20px; }
-    .header-title span { color: var(--nissan-red); font-weight: 600; }
-    .main { max-width: 960px; margin: 40px auto; padding: 0 20px; }
-    .hero { text-align: center; margin-bottom: 36px; }
-    .hero h1 { font-size: 32px; font-weight: 700; letter-spacing: 1px; margin-bottom: 10px; }
-    .hero h1 .accent { color: var(--nissan-red); }
-    .hero p { color: #666; font-size: 15px; max-width: 600px; margin: 0 auto; line-height: 1.6; }
-    .card { background: #fff; border-radius: 4px; padding: 32px; box-shadow: 0 4px 24px rgba(0,0,0,0.06); border-top: 4px solid var(--nissan-red); }
-    .input-row { display: flex; gap: 12px; flex-wrap: wrap; }
-    input { flex: 1; min-width: 260px; padding: 16px; font-size: 15px; border: 2px solid var(--border-gray); border-radius: 4px; transition: border-color 0.2s; }
-    input:focus { outline: none; border-color: var(--nissan-red); }
-    .btn { background: var(--nissan-red); color: #fff; border: none; padding: 16px 36px; font-size: 14px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; border-radius: 4px; cursor: pointer; transition: background 0.2s; white-space: nowrap; }
-    .btn:hover { background: var(--nissan-red-dark); }
-    .btn:disabled { background: #999; cursor: not-allowed; }
-    .status { margin-top: 18px; font-size: 14px; color: #666; min-height: 20px; }
-    .status.error { color: var(--nissan-red); font-weight: 600; }
-    .status.success { color: #2e7d32; font-weight: 600; }
-    .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #ddd; border-top-color: var(--nissan-red); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .results { margin-top: 32px; }
-    .section { background: #fff; border-radius: 4px; margin-bottom: 20px; overflow: hidden; box-shadow: 0 2px 12px rgba(0,0,0,0.05); }
-    .section-header { background: var(--nissan-gray); color: #fff; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; }
-    .section-header h3 { font-size: 15px; font-weight: 600; letter-spacing: 0.5px; display: flex; align-items: center; gap: 10px; }
-    .badge { background: var(--nissan-red); color: #fff; font-size: 12px; padding: 3px 10px; border-radius: 12px; font-weight: 700; }
-    .copy-all { background: rgba(255,255,255,0.15); color: #fff; border: 1px solid rgba(255,255,255,0.3); padding: 8px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; font-weight: 600; transition: background 0.2s; }
-    .copy-all:hover { background: rgba(255,255,255,0.25); }
-    .section-body { padding: 8px 20px 20px; }
-    .img-item { display: flex; align-items: center; justify-content: space-between; padding: 14px 0; border-bottom: 1px solid var(--border-gray); gap: 12px; }
-    .img-item:last-child { border-bottom: none; }
-    .img-link { color: #0066cc; text-decoration: none; font-size: 13px; word-break: break-all; flex: 1; font-family: 'Courier New', monospace; }
-    .img-link:hover { text-decoration: underline; }
-    .btn-group { display: flex; gap: 8px; flex-shrink: 0; }
-    .mini-btn { background: var(--nissan-black); color: #fff; border: none; padding: 8px 16px; font-size: 12px; border-radius: 4px; cursor: pointer; font-weight: 600; transition: background 0.2s; white-space: nowrap; }
-    .mini-btn:hover { background: var(--nissan-red); }
-    .empty { color: #999; font-style: italic; padding: 16px 0; font-size: 14px; }
-    .info-table { width: 100%; border-collapse: collapse; }
-    .info-table tr { border-bottom: 1px solid var(--border-gray); }
-    .info-table tr:last-child { border-bottom: none; }
-    .info-label { padding: 12px 16px 12px 0; font-weight: 600; color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; width: 180px; vertical-align: top; }
-    .info-value { padding: 12px 0; color: var(--nissan-black); font-size: 15px; }
-    .footer { text-align: center; padding: 30px 20px; color: #999; font-size: 12px; letter-spacing: 0.5px; }
-    @media (max-width: 600px) {
-      .header { padding: 14px 20px; }
-      .header-title { font-size: 12px; letter-spacing: 1px; padding-left: 12px; }
-      .hero h1 { font-size: 24px; }
-      .img-item { flex-direction: column; align-items: stretch; }
-      .btn-group { justify-content: flex-end; }
-      .info-label { width: auto; }
-    }
-  </style>
+  <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
   <header class="header">
@@ -180,22 +117,16 @@
     function renderInfoCard(info, codes) {
       const results = document.getElementById('results');
       const card = document.createElement('div');
-      card.className = 'section';
+      card.className = 'section info-card';
 
       let rows = '';
       if (info.model) rows += infoRow('Model', info.model);
       if (info.grade) rows += infoRow('Verzija', info.grade);
-      if (info.color) {
-        const tone = info.is_dual_tone ? ' (dvobojna 🎨)' : ' (jednobojna)';
-        rows += infoRow('Boja', info.color + tone);
-      }
-      if (info.interior) rows += infoRow('Interijer', info.interior);
       if (info.price) rows += infoRow('Cijena', info.price);
 
       if (codes) {
-        if (codes.vehicle_code) rows += infoRow('Šifra vozila', codes.vehicle_code);
-        if (codes.paint_code) rows += infoRow('Šifra boje', codes.paint_code);
-        if (codes.fabric_code) rows += infoRow('Šifra interijera', codes.fabric_code);
+        if (codes.paint_code) rows += infoRow('Šifra boje', '<span class="code-pill">' + codes.paint_code + '</span>');
+        if (codes.fabric_code) rows += infoRow('Šifra interijera', '<span class="code-pill">' + codes.fabric_code + '</span>');
       }
 
       if (!rows) return;
