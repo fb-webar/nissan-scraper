@@ -4,6 +4,7 @@ from playwright.async_api import async_playwright
 
 
 def build_interior_panorama(base_link: str) -> str:
+    """IRIS tip: generira 360 interijer panoramu."""
     parsed = urlparse(base_link)
     params = parse_qs(parsed.query, keep_blank_values=True)
     params["width"] = ["4096"]
@@ -24,8 +25,25 @@ def build_interior_panorama(base_link: str) -> str:
     ))
 
 
+def build_cloudfront_sequence(sample_link: str, max_images: int = 8) -> list:
+    """
+    CloudFront tip (novi Micra/Leaf): iz jedne slike rekonstruira sve.
+    Primjer: .../369/1_default.webp -> 1,2,3,4,5,6...
+    """
+    m = re.search(r"(.*/)(\d+)(_default\.\w+)$", sample_link)
+    if not m:
+        return [sample_link]
+
+    prefix, _, suffix = m.group(1), m.group(2), m.group(3)
+    links = []
+    for i in range(1, max_images + 1):
+        links.append(f"{prefix}{i}{suffix}")
+    return links
+
+
 async def scrape_nissan_images(url: str) -> dict:
     iris_links = set()
+    cloudfront_links = set()
     browser = None
 
     try:
@@ -61,8 +79,12 @@ async def scrape_nissan_images(url: str) -> dict:
 
             def handle_response(response):
                 u = response.url
+                # IRIS tip (Qashqai, X-Trail, stari Leaf)
                 if "heliosnissan.net/iris" in u or "mediaserver" in u:
                     iris_links.add(u)
+                # CloudFront tip (novi Micra/Leaf)
+                if "cloudfront.net" in u and "/vehicles/" in u and "_default" in u:
+                    cloudfront_links.add(u)
 
             page.on("response", handle_response)
 
@@ -73,6 +95,15 @@ async def scrape_nissan_images(url: str) -> dict:
 
             await page.wait_for_timeout(6000)
 
+            # Scroll da se učitaju lazy slike (bitno za slider)
+            try:
+                await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+                await page.wait_for_timeout(2000)
+                await page.evaluate("window.scrollTo(0, 0)")
+                await page.wait_for_timeout(1500)
+            except Exception:
+                pass
+
     except Exception:
         pass
     finally:
@@ -82,7 +113,7 @@ async def scrape_nissan_images(url: str) -> dict:
             except Exception:
                 pass
 
-    # Klasifikacija linkova
+    # ============ IRIS TIP ============
     exterior = []
     interior_captured = []
     other_iris = []
@@ -97,11 +128,10 @@ async def scrape_nissan_images(url: str) -> dict:
         else:
             other_iris.append(link)
 
-    # Generiraj interijer panoramu iz bilo kojeg linka
     generated_interior = ""
-    all_links = list(iris_links)
-    if all_links:
-        base = exterior[0] if exterior else all_links[0]
+    all_iris = list(iris_links)
+    if all_iris:
+        base = exterior[0] if exterior else all_iris[0]
         try:
             generated_interior = build_interior_panorama(base)
         except Exception:
@@ -111,19 +141,26 @@ async def scrape_nissan_images(url: str) -> dict:
     if generated_interior and generated_interior not in interior_final:
         interior_final.insert(0, generated_interior)
 
-    # Dekodiraj šifre iz linka (uvijek točno, neovisno o tržištu)
-    codes = {}
-    if all_links:
-        parsed = urlparse(all_links[0])
-        qs = parse_qs(parsed.query)
+    # ============ CLOUDFRONT TIP ============
+    cloudfront_final = []
+    if cloudfront_links:
+        sample = sorted(cloudfront_links)[0]
+        cloudfront_final = build_cloudfront_sequence(sample, max_images=8)
+        for cl in cloudfront_links:
+            if cl not in cloudfront_final:
+                cloudfront_final.append(cl)
+        cloudfront_final = sorted(set(cloudfront_final))
 
-        # Očisti šifru vozila: "8_T33" -> "T33", "8_T33D" -> "T33D"
+    # ============ ŠIFRE (samo IRIS tip) ============
+    codes = {}
+    if all_iris:
+        parsed = urlparse(all_iris[0])
+        qs = parse_qs(parsed.query)
         raw_vehicle = qs.get("vehicle", [""])[0]
         if "_" in raw_vehicle:
             vehicle_code = raw_vehicle.split("_", 1)[1]
         else:
             vehicle_code = raw_vehicle
-
         codes = {
             "vehicle_code": vehicle_code,
             "paint_code": qs.get("paint", [""])[0],
@@ -134,7 +171,8 @@ async def scrape_nissan_images(url: str) -> dict:
         "exterior_360": sorted(set(exterior)),
         "interior_pannellum": interior_final,
         "generated_panorama": generated_interior,
+        "cloudfront_images": cloudfront_final,
         "other_images": sorted(set(other_iris)),
         "codes": codes,
-        "total": len(iris_links),
+        "total": len(iris_links) + len(cloudfront_links),
     }
